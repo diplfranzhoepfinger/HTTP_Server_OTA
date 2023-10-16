@@ -80,9 +80,8 @@ static esp_err_t post_handler(httpd_req_t *req)
     }
 
     err = esp_ota_set_boot_partition(update_partition);
-    printf("restarting the app\n");
+    ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
-    printf("This line should not print\n");
     return ESP_OK;
 }
 
