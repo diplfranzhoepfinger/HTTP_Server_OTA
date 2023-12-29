@@ -47,7 +47,7 @@ static void __attribute__((noreturn)) task_fatal_error(void)
 }
 
 /* An HTTP POST handler */
-static esp_err_t post_handler(httpd_req_t *req)
+static esp_err_t ota_post_handler(httpd_req_t *req)
 {
     char buf[100];
     int ret, remaining = req->content_len;
@@ -102,7 +102,7 @@ static const httpd_uri_t update = {
     // Upload the new binary image using: `curl -X POST --data-binary @new_image.bin 192.168.43.130:80/update`
     .uri       = "/update",
     .method    = HTTP_POST,
-    .handler   = post_handler,
+    .handler   = ota_post_handler,
     .user_ctx  = NULL
 };
 
