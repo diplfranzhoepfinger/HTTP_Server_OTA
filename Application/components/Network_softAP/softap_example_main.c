@@ -18,14 +18,16 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+
+extern void Network_softAP_main(void);
+
 /* The examples use WiFi configuration that you can set via project configuration menu.
 
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
-#define EXAMPLE_ESP_WIFI_CHANNEL   CONFIG_ESP_WIFI_CHANNEL
+#define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_AP_PASSWORD
+#define EXAMPLE_ESP_WIFI_CHANNEL   CONFIG_ESP_WIFI_AP_CHANNEL
 #define EXAMPLE_MAX_STA_CONN       CONFIG_ESP_MAX_STA_CONN
 
 static const char *TAG = "wifi softAP";
@@ -61,8 +63,8 @@ void wifi_init_softap(void)
 
     wifi_config_t wifi_config = {
         .ap = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .ssid_len = strlen(EXAMPLE_ESP_WIFI_SSID),
+            .ssid = "XX",
+            .ssid_len = 2,
             .channel = EXAMPLE_ESP_WIFI_CHANNEL,
             .password = EXAMPLE_ESP_WIFI_PASS,
             .max_connection = EXAMPLE_MAX_STA_CONN,
@@ -70,13 +72,17 @@ void wifi_init_softap(void)
             .authmode = WIFI_AUTH_WPA3_PSK,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
 #else /* CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT */
-            .authmode = WIFI_AUTH_WPA2_PSK,
+            .authmode = WIFI_AUTH_WPA_WPA2_PSK,
 #endif
             .pmf_cfg = {
-                    .required = true,
+                    .required = false,
             },
         },
     };
+
+    wifi_config.ap.ssid[0] = 0XFF;
+    wifi_config.ap.ssid[1] = 0XFF;
+
     if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
@@ -85,11 +91,13 @@ void wifi_init_softap(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
+
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS, EXAMPLE_ESP_WIFI_CHANNEL);
+             wifi_config.ap.ssid, wifi_config.ap.password, wifi_config.ap.channel);
 }
 
-void app_main(void)
+void Network_softAP_main(void)
 {
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
