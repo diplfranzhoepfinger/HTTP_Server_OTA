@@ -357,6 +357,17 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     }
 
     err = esp_ota_set_boot_partition(update_partition);
+
+    /* Redirect onto root to see the updated file list */
+    httpd_resp_set_status(req, "303 See Other");
+    httpd_resp_set_hdr(req, "Location", "/");
+#ifdef CONFIG_EXAMPLE_HTTPD_CONN_CLOSE_HEADER
+    httpd_resp_set_hdr(req, "Connection", "close");
+#endif
+    httpd_resp_sendstr(req, "File uploaded successfully, OTA Update done, Rebooting...");
+
+
+
     ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
     return ESP_OK;
