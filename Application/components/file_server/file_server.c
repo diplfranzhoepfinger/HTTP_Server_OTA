@@ -361,12 +361,18 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     /* Redirect onto root to see the updated file list */
     httpd_resp_set_status(req, "303 See Other");
     httpd_resp_set_hdr(req, "Location", "/");
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "File uploaded successfully, OTA Update done, Rebooting...");
 #ifdef CONFIG_EXAMPLE_HTTPD_CONN_CLOSE_HEADER
     httpd_resp_set_hdr(req, "Connection", "close");
 #endif
     httpd_resp_sendstr(req, "File uploaded successfully, OTA Update done, Rebooting...");
 
-
+    for (int i = 10; i >= 0; i--) {
+    	ESP_LOGI(TAG, "Restarting in %d seconds...\n", i);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    ESP_LOGI(TAG, "Restarting now.\n");
+    fflush(stdout);
 
     ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
