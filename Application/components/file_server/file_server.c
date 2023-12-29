@@ -34,6 +34,9 @@
 #define MAX_FILE_SIZE   (1000*1024) // 1000 KB
 #define MAX_FILE_SIZE_STR "1000KB"
 
+static const char * const update_file = "/Application.bin";
+
+
 /* Scratch buffer size */
 #define SCRATCH_BUFSIZE  8192
 
@@ -331,6 +334,13 @@ static esp_err_t upload_post_handler(httpd_req_t *req)
          * incoming file content will keep the socket busy */
         return ESP_FAIL;
     }
+
+    if(0 == strcmp(filename, update_file)) {
+    	ESP_LOGE(TAG, "Making an OTA Update ******************************* : %s", filename);
+    }
+
+
+
 
     fd = fopen(filepath, "w");
     if (!fd) {
