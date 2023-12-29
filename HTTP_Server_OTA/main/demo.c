@@ -52,6 +52,19 @@ static esp_err_t post_handler(httpd_req_t *req)
     char buf[100];
     int ret, remaining = req->content_len;
     esp_err_t err;
+
+    update_partition = esp_ota_get_next_update_partition(NULL);
+    assert(update_partition != NULL);
+
+    err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+        esp_ota_abort(update_handle);
+        task_fatal_error();
+    }
+
+
+
     while (remaining > 0) {
         /* Read the data for the request */
         if ((ret = httpd_req_recv(req, buf,
@@ -138,15 +151,7 @@ void app_main(void)
      * examples/protocols/README.md for more information about this function.
      */
     ESP_ERROR_CHECK(example_connect());
-    update_partition = esp_ota_get_next_update_partition(NULL);
-    assert(update_partition != NULL);
 
-    esp_err_t err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
-        esp_ota_abort(update_handle);
-        task_fatal_error();
-    }
 
 #ifdef CONFIG_EXAMPLE_CONNECT_WIFI
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
