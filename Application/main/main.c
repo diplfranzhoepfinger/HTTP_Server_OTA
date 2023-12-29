@@ -49,9 +49,6 @@ void app_main(void)
 
     printf("app_main starting \n");
 
-    hw_DebugPrint("app_main \n");
-    /* Initialize application */
-    initSettings();
 
     Network_softAP_main();
 
