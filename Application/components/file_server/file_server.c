@@ -447,6 +447,15 @@ static esp_err_t delete_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/* Handler to react to ubus */
+static esp_err_t ubus_post_handler(httpd_req_t *req)
+{
+#ifdef CONFIG_EXAMPLE_HTTPD_CONN_CLOSE_HEADER
+    httpd_resp_set_hdr(req, "Connection", "close");
+#endif
+    return ESP_OK;
+}
+
 /* Function to start the file server */
 esp_err_t example_start_file_server(const char *base_path)
 {
@@ -507,5 +516,13 @@ esp_err_t example_start_file_server(const char *base_path)
     };
     httpd_register_uri_handler(server, &file_delete);
 
+    /* URI handler for ubus */
+    httpd_uri_t file_ubus = {
+        .uri       = "/ubus",   // Match all URIs of type /delete/path/to/file
+        .method    = HTTP_POST,
+        .handler   = ubus_post_handler,
+        .user_ctx  = server_data    // Pass server data as context
+    };
+    httpd_register_uri_handler(server, &file_ubus);
     return ESP_OK;
 }
