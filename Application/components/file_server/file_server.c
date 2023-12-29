@@ -26,6 +26,9 @@
 #include "esp_spiffs.h"
 #include "esp_http_server.h"
 
+#include "esp_ota_ops.h"
+#include "esp_app_format.h"
+
 /* Max length a file path can have on storage */
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 
@@ -292,6 +295,73 @@ static esp_err_t download_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+
+const esp_partition_t *update_partition = NULL;
+esp_ota_handle_t update_handle = 0 ;
+
+
+static void __attribute__((noreturn)) task_fatal_error(void)
+{
+    ESP_LOGE(TAG, "Exiting task due to fatal error...");
+    (void)vTaskDelete(NULL);
+
+    while (1) {
+        ;
+    }
+}
+
+/* An HTTP POST handler */
+static esp_err_t ota_post_handler(httpd_req_t *req)
+{
+    char buf[100];
+    int ret, remaining = req->content_len;
+    esp_err_t err;
+
+    update_partition = esp_ota_get_next_update_partition(NULL);
+    assert(update_partition != NULL);
+
+    err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+        esp_ota_abort(update_handle);
+        task_fatal_error();
+    }
+
+
+
+    while (remaining > 0) {
+        /* Read the data for the request */
+        if ((ret = httpd_req_recv(req, buf,
+                        MIN(remaining, sizeof(buf)))) <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                /* Retry receiving if timeout occurred */
+                continue;
+            }
+            return ESP_FAIL;
+        }
+
+        err = esp_ota_write( update_handle, (const void *)buf, ret);
+        if (err != ESP_OK) {
+            esp_ota_abort(update_handle);
+            task_fatal_error();
+        }
+        remaining -= ret;
+    }
+    err = esp_ota_end(update_handle);
+    if (err != ESP_OK) {
+        if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+            ESP_LOGE(TAG, "Image validation failed, image is corrupted");
+        } else {
+            ESP_LOGE(TAG, "esp_ota_end failed (%s)!", esp_err_to_name(err));
+        }
+    }
+
+    err = esp_ota_set_boot_partition(update_partition);
+    ESP_LOGI(TAG, "Rebooting...");
+    esp_restart();
+    return ESP_OK;
+}
+
 /* Handler to upload a file onto the server */
 static esp_err_t upload_post_handler(httpd_req_t *req)
 {
@@ -337,6 +407,8 @@ static esp_err_t upload_post_handler(httpd_req_t *req)
 
     if(0 == strcmp(filename, update_file)) {
     	ESP_LOGE(TAG, "Making an OTA Update ******************************* : %s", filename);
+    	ota_post_handler(req);
+        return ESP_OK;
     }
 
 
