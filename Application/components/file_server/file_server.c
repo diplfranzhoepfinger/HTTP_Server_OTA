@@ -34,8 +34,8 @@
 
 /* Max size of an individual file. Make sure this
  * value is same as that set in upload_script.html */
-#define MAX_FILE_SIZE   (1000*1024) // 1000 KB
-#define MAX_FILE_SIZE_STR "1000KB"
+#define MAX_FILE_SIZE   (3000*1024) // 3000 KB
+#define MAX_FILE_SIZE_STR "3000KB"
 
 static const char * const update_file = "/Application.bin";
 
@@ -423,8 +423,8 @@ static esp_err_t upload_post_handler(httpd_req_t *req)
     }
 
     if(0 == strcmp(filename, update_file)) {
-    	ESP_LOGE(TAG, "Making an OTA Update ******************************* : %s", filename);
-    	ota_post_handler(req);
+        ESP_LOGE(TAG, "Making an OTA Update ******************************* : %s", filename);
+        ota_post_handler(req);
         return ESP_OK;
     }
 
