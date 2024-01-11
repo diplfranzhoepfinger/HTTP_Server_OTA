@@ -37,6 +37,20 @@
 #define MAX_FILE_SIZE   (3000*1024) // 3000 KB
 #define MAX_FILE_SIZE_STR "3000KB"
 
+#define MAX_FILE_INFOS 100
+
+/* structure for storing version information */
+struct file_version_info
+{
+	char file_name[FILE_PATH_MAX];
+	esp_app_desc_t info;
+	int id;
+
+};
+
+static struct file_version_info uploaded_files_infos[MAX_FILE_INFOS];
+static int uploaded_files_count = 0;
+
 static const char * const update_file = "/Application.bin";
 
 
@@ -52,6 +66,18 @@ struct file_server_data {
 };
 
 static const char *TAG = "file_server";
+
+/* Searches for an file_version_info entry with matching file_name
+ * and returns it */
+static struct file_version_info* find_file_info(char* file_name) {
+	for (int i = 0; i < uploaded_files_count; i++) {
+		if (0 == strcmp(file_name, uploaded_files_infos[i].file_name)) {
+			return &uploaded_files_infos[i];
+		}
+	}
+
+	return 0;
+}
 
 /* Handler to redirect incoming GET request for /index.html to /
  * This can be overridden by uploading file with same name */
@@ -84,6 +110,7 @@ static esp_err_t http_resp_dir_html(httpd_req_t *req, const char *dirpath)
 {
     char entrypath[FILE_PATH_MAX];
     char entrysize[16];
+    char entryid[16];
     const char *entrytype;
 
     struct dirent *entry;
@@ -117,8 +144,9 @@ static esp_err_t http_resp_dir_html(httpd_req_t *req, const char *dirpath)
     httpd_resp_sendstr_chunk(req,
         "<table class=\"fixed\" border=\"1\">"
         "<col width=\"800px\" /><col width=\"300px\" /><col width=\"300px\" /><col width=\"100px\" />"
-        "<thead><tr><th>Name</th><th>Type</th><th>Size (Bytes)</th><th>Delete</th></tr></thead>"
+        "<thead><tr><th>Name</th><th>Type</th><th>Size (Bytes)</th><th>Version</th><th>Delete</th></tr></thead>"
         "<tbody>");
+    int idx = 0;
 
     /* Iterate over all files / folders and fetch their names and sizes */
     while ((entry = readdir(dir)) != NULL) {
@@ -130,6 +158,7 @@ static esp_err_t http_resp_dir_html(httpd_req_t *req, const char *dirpath)
             continue;
         }
         sprintf(entrysize, "%ld", entry_stat.st_size);
+
         ESP_LOGI(TAG, "Found %s : %s (%s bytes)", entrytype, entry->d_name, entrysize);
 
         /* Send chunk of HTML file containing table entries with file name and size */
@@ -143,14 +172,30 @@ static esp_err_t http_resp_dir_html(httpd_req_t *req, const char *dirpath)
         httpd_resp_sendstr_chunk(req, entry->d_name);
         httpd_resp_sendstr_chunk(req, "</a></td><td>");
         httpd_resp_sendstr_chunk(req, entrytype);
-        httpd_resp_sendstr_chunk(req, "</td><td>");
+        httpd_resp_sendstr_chunk(req, "</td><td align=\"right\">");
         httpd_resp_sendstr_chunk(req, entrysize);
+        httpd_resp_sendstr_chunk(req, "</td><td>");
+
+        struct file_version_info* file_info = find_file_info(entry->d_name);
+
+        if (0 != file_info) {
+        	sprintf(entryid, "%d", file_info->id);
+
+        	httpd_resp_sendstr_chunk(req, "<a href=\version.html?id=");
+        	httpd_resp_sendstr_chunk(req, entryid);
+        	httpd_resp_sendstr_chunk(req, "\">");
+        	httpd_resp_sendstr_chunk(req, file_info->info.version);
+        	httpd_resp_sendstr_chunk(req, "</a>");
+        }
+
         httpd_resp_sendstr_chunk(req, "</td><td>");
         httpd_resp_sendstr_chunk(req, "<form method=\"post\" action=\"/delete");
         httpd_resp_sendstr_chunk(req, req->uri);
         httpd_resp_sendstr_chunk(req, entry->d_name);
         httpd_resp_sendstr_chunk(req, "\"><button type=\"submit\">Delete</button></form>");
         httpd_resp_sendstr_chunk(req, "</td></tr>\n");
+
+        idx++;
     }
     closedir(dir);
 
@@ -327,8 +372,6 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
         task_fatal_error();
     }
 
-
-
     while (remaining > 0) {
         /* Read the data for the request */
         if ((ret = httpd_req_recv(req, buf,
@@ -491,6 +534,28 @@ static esp_err_t upload_post_handler(httpd_req_t *req)
     /* Close file upon upload completion */
     fclose(fd);
     ESP_LOGI(TAG, "File reception complete");
+
+    /* Request ESP specific application version */
+    esp_app_desc_t new_app_info;
+
+	if (req->content_len > sizeof(esp_app_desc_t)) {
+		memcpy(&new_app_info, buf, sizeof(esp_app_desc_t));
+		/* check, if magic word is correct */
+		if (new_app_info.magic_word == ESP_IMAGE_HEADER_MAGIC) {
+			if (uploaded_files_count < MAX_FILE_INFOS - 1 ) {
+				ESP_LOGI(TAG, "ESP version: %s", new_app_info.version);
+				ESP_LOGI(TAG, "Project: %s", new_app_info.project_name);
+				ESP_LOGI(TAG, "Build date: %s %s", new_app_info.date, new_app_info.time);
+				ESP_LOGI(TAG, "IDF version: %s", new_app_info.idf_ver);
+
+				strcpy(uploaded_files_infos[uploaded_files_count].file_name, filepath);
+				uploaded_files_infos[uploaded_files_count].info = new_app_info;
+				uploaded_files_infos[uploaded_files_count].id = uploaded_files_count;
+
+				uploaded_files_count++;
+			}
+		}
+	}
 
     /* Redirect onto root to see the updated file list */
     httpd_resp_set_status(req, "303 See Other");
